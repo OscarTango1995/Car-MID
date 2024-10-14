@@ -5,6 +5,7 @@
 #include"altitude.h"
 #include"buzzer.h"
 #include"remote.h"
+#include"elm.h"
 
 bool selected=false;
 unsigned long lastInteractionMillis = 0; // Timer for user interaction
@@ -20,10 +21,11 @@ bool menuDrawn = false;               // Flag to check if the menu has already b
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);
-  delay(1000);
+    Serial.begin(9600);
+    delay(1000);
 
 // initialize Sensors & Displays
+    initializeBluetooth(); // Initialize Bluetooth
     initAltitude(); 
     initDisplays();
     initTempSensors(); 
@@ -38,11 +40,10 @@ void setup() {
 void loop() {
    decodeIR();
    unsigned long currentMillis = millis(); // Get the current time
-
     if (!selected && currentMillis - tempSelection<=0 ){
         currentMenu=2;
         selected=true;
-    }
+
    
     switch (currentMenu)
     {
@@ -55,26 +56,31 @@ void loop() {
                }
         break;
         case 1:
-        if (isStarted){ 
-            drawGPSScreen(false);
-            isStarted=false;
+            if (isStarted){ 
+                drawGPSScreen(false);
             }
             else if(currentMillis - previousTempMillis >= tempInterval) {
                 previousTempMillis = currentMillis;
-            drawGPSScreen(true);
+                drawGPSScreen(true);
             }
         break;
         case 2:
         if (isStarted){
-            Temperatures temp = getTemperatures(); 
-            drawTemperaturesScreen(temp,false);
+            // float coolantTemp=readCoolantTemp();
+            float coolantTemp=10.0; 
+
+            delay(750);
+            Temperatures temp = getTemperatures();
+            drawTemperaturesScreen(temp,false,coolantTemp);
             isStarted=false;
-            }
-            else if(currentMillis - previousTempMillis >= tempInterval) {
+            }else if(currentMillis - previousTempMillis >= tempInterval) {
                 previousTempMillis = currentMillis;
+                // float coolantTemp=readCoolantTemp();
+                float coolantTemp=10.0; 
+
+                delay(750);
                 Temperatures temp = getTemperatures();
-                temp.engine=65; 
-                drawTemperaturesScreen(temp,true);
+                drawTemperaturesScreen(temp,false,coolantTemp);
             }
         break;
         case 3:

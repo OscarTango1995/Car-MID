@@ -139,19 +139,24 @@ void initDisplays() {
     if (!oled.begin()) {
     Serial.println(F("Failed to initialize display"));
     while (1);  
+<<<<<<< HEAD
+=======
+    }
+>>>>>>> 01f5be2 (EML 327 Support Added)
     delay(750);
     }
-
 
     oled2.setI2CAddress(0x3D << 1);  
     if (!oled2.begin()) {
     Serial.println(F("Failed to initialize display"));
     while (1);  
-    delay(750);
   }
+      delay(750);
+
 }
 
 // Function to display temperature data on the OLED
+<<<<<<< HEAD
 void drawTemperaturesScreen(Temperatures temp, bool update) {
     char oatStr[10], iatStr[10], rhStr[10], engStr[10];
     sprintf(oatStr, "%d °C", (int)temp.oat);
@@ -186,6 +191,14 @@ void drawTemperaturesScreen(Temperatures temp, bool update) {
         oled2.setCursor(50, 61); oled2.print(engStr); 
     }
         oled2.sendBuffer();
+=======
+void drawTemperaturesScreen(Temperatures temp, int coolantTemp) {
+    char content[60]; 
+    snprintf(content, sizeof(content), "OAT : %d C\nIAT : %d C\nRH  : %d %% \nENG : %d C", 
+             (int)temp.oat, (int)temp.iat, (int)temp.humidity,coolantTemp);
+    
+    drawDisplay(oled2, "TEMPERATURES", content);    
+>>>>>>> 01f5be2 (EML 327 Support Added)
 }
 
 
