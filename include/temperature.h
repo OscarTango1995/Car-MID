@@ -10,7 +10,6 @@ struct Temperatures {
     float oat;
     float iat;
     float humidity;
-    float engine;
 };
 
 void initTempSensors(); 
