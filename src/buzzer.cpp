@@ -1,22 +1,37 @@
 #include <Arduino.h>
 #include "buzzer.h"
 
-// Define the buzzer pin
-const int buzzerPin = 13; // Set your actual buzzer pin here
+const int buzzerPin = 13;
 
-// Initialize the buzzer pin
+// Initialize the buzzer
 void initBuzzer()
 {
-  pinMode(buzzerPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT); // Set pin as output
 }
 
 // Turn the buzzer on for 1 second
 void turnBuzzerOn(bool turn)
 {
-  digitalWrite(buzzerPin, HIGH); // Turn the buzzer on
+  digitalWrite(buzzerPin, HIGH);
+  delay(150); // Wait for 1 second
   if (turn)
   {
-    delay(150);                   // Buzzer on for 1 second
-    digitalWrite(buzzerPin, LOW); // Turn the buzzer off
+    digitalWrite(buzzerPin, LOW);
+    delay(1000); // Wait for 1 second
   }
+}
+void beep(int time)
+{
+  for (u_int8_t i = 0; i < time; i++)
+  {
+    digitalWrite(buzzerPin, HIGH);
+    delay(200); // Wait for 1 second
+    digitalWrite(buzzerPin, LOW);
+    delay(200); // Wait for 1 second
+  }
+}
+
+void turnBuzzerOff()
+{
+  digitalWrite(buzzerPin, LOW);
 }

@@ -1,5 +1,6 @@
 #include "elm.h"
-#include "Arduino.h"
+#include <Arduino.h>
+#include "sd.h"
 
 BluetoothSerial SerialBT;
 ELM327 myELM327;
@@ -24,7 +25,7 @@ void connectToOBD()
         while (1)
             ;
     }
-    if (!myELM327.begin(SerialBT, true, 2000))
+    if (!myELM327.begin(SerialBT, false, 2000))
     {
         Serial.println("Couldn't connect to OBD scanner - Phase 2");
         while (1)
@@ -38,8 +39,6 @@ int readCoolantTemp()
     float coolant = myELM327.engineCoolantTemp();
     if (myELM327.nb_rx_state == ELM_SUCCESS)
     {
-        Serial.print("coolant: ");
-        Serial.println((uint32_t)coolant);
         return (uint32_t)coolant;
     }
     else if (myELM327.nb_rx_state != ELM_GETTING_MSG)
@@ -51,58 +50,80 @@ int readCoolantTemp()
 
 float readFuelFlow()
 {
-    float engineLoad = myELM327.engineLoad();
+    float engineLoad = myELM327.engineLoad(); //%
     if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
         myELM327.printError();
     }
 
-    uint8_t manifoldPressure = myELM327.manifoldPressure();
+    uint8_t manifoldPressure = myELM327.manifoldPressure(); // kpa
     if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
         myELM327.printError();
     }
 
-    float throttlePosition = myELM327.throttle();
+    float throttlePosition = myELM327.throttle(); //%
     if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
         myELM327.printError();
     }
 
+    float rpm = myELM327.rpm(); // int
+    if (myELM327.nb_rx_state != ELM_GETTING_MSG)
+    {
+        myELM327.printError();
+    }
+
+    float K = 5772751.26;
+
+    float fuelFlow = (engineLoad * throttlePosition * manifoldPressure * rpm) / K;
+
+    return fuelFlow / 60; // L/min
+}
+
+EngineInfo getEngineInfo()
+{
     float rpm = myELM327.rpm();
     if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
         myELM327.printError();
     }
 
-    float K = 0.5; // Adjust this based on your engine's specifications
-
-    float fuelFlow = (engineLoad / 100.0) * (manifoldPressure / 100.0) * (throttlePosition / 100.0) * (rpm / 2.0) * K;
-
-    return fuelFlow; // Return fuel flow in L/h
-}
-
-float calculateAverageFuelConsumption(float fuelFlow)
-{
-    // Step 1:Calculate speed
-    int32_t speed = myELM327.kph();
+    float coolant = myELM327.engineCoolantTemp();
     if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
         myELM327.printError();
     }
-    // Step 1: Calculate fuel consumption rate in L/min
-    float fuelConsumptionRate = readFuelFlow() / 60.0;
 
-    // Step 2: Convert speed to km/min
-    float distanceTraveled = (float)speed / 60.0; // Speed in km/h
-
-    // Step 3: Calculate average fuel consumption in km/L
-    if (fuelConsumptionRate < 1)
+    float speed = myELM327.kph();
+    if (myELM327.nb_rx_state != ELM_GETTING_MSG)
     {
-        fuelConsumptionRate = 1;
+        myELM327.printError();
     }
 
-    float averageFuelConsumption = distanceTraveled / fuelConsumptionRate;
+    EngineInfo engine;
+    engine.coolantTemp = coolant;
+    engine.rpm = rpm;
+    engine.speed = speed;
+    return engine;
+}
 
-    return averageFuelConsumption; // Return average fuel consumption in km/L
+int getSpeed()
+{
+    float speed = myELM327.kph();
+    if (myELM327.nb_rx_state != ELM_GETTING_MSG)
+    {
+        myELM327.printError();
+    }
+    return speed;
+}
+
+int getRPM()
+{
+    float rpm = myELM327.rpm();
+    if (myELM327.nb_rx_state != ELM_GETTING_MSG)
+    {
+        myELM327.printError();
+    }
+    return rpm;
 }

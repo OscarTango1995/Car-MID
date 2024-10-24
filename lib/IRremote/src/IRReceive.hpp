@@ -119,7 +119,7 @@ IRrecv::IRrecv(uint_fast8_t aReceivePin, uint_fast8_t aFeedbackLEDPin) {
  **********************************************************************************************************************/
 #if defined(ESP8266) || defined(ESP32)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wvolatile"
+// #pragma GCC diagnostic ignored "-Wvolatile"
 IRAM_ATTR
 #endif
 void IRReceiveTimerInterruptHandler() {
