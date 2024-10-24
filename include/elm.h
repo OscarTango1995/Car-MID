@@ -11,7 +11,5 @@ void initializeBluetooth();
 void connectToOBD();
 int readCoolantTemp();
 float readFuelFlow();
-float calculateAverageFuelConsumption(float fuelFlow);
-
 
 #endif

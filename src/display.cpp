@@ -38,8 +38,7 @@ void drawMenu(int selectedItem)
         "1. GPS",
         "2. Temps",
         "3. Altitude",
-        "4. Average",
-        "5. Service"};
+        "4. Service"};
 
     int itemCount = sizeof(menuItems) / sizeof(menuItems[0]);
 
@@ -191,13 +190,13 @@ void drawTemperaturesScreen(Temperatures temp, bool update, int coolantTemp)
 }
 
 // Function to display GPS data on the OLED
-void drawGPSScreen(bool update)
+void drawGPSScreen(bool update,int sats, int speed,int fix)
 {
     oled2.setI2CAddress(0x3D << 1);
-    char satStr[10], spdStr[10], dteStr[10];
-    sprintf(satStr, "%d ", 4);
-    sprintf(spdStr, "%d KM/H", 100);
-    sprintf(dteStr, "%d KM", 500);
+    char satStr[10], spdStr[10], fixStr[10];
+    sprintf(satStr, "%d ", sats);
+    sprintf(spdStr, "%d KM/H", speed);
+    sprintf(fixStr, "%dD", fix);
 
     if (!update)
     {
@@ -211,14 +210,14 @@ void drawGPSScreen(bool update)
         oled2.setCursor(6, contentYPosition + 1 * lineHeight);
         oled2.print("SPD : ");
         oled2.setCursor(6, contentYPosition + 2 * lineHeight);
-        oled2.print("DTE : ");
+        oled2.print("FIX : ");
 
         oled2.setCursor(50, contentYPosition + 0 * lineHeight);
         oled2.print(satStr);
         oled2.setCursor(50, contentYPosition + 1 * lineHeight);
         oled2.print(spdStr);
         oled2.setCursor(50, contentYPosition + 2 * lineHeight);
-        oled2.print(dteStr);
+        oled2.print(fixStr);
         oled2.sendBuffer();
     }
     else
@@ -232,7 +231,7 @@ void drawGPSScreen(bool update)
         oled2.setCursor(50, 37);
         oled2.print(spdStr);
         oled2.setCursor(50, 49);
-        oled2.print(dteStr);
+        oled2.print(fixStr);
     }
     oled2.sendBuffer();
 }
@@ -291,7 +290,7 @@ void drawAltitudeScreen(Altitude altitude, Temperatures temp, bool update)
 }
 
 // Function to display avg data on the OLED
-void drawAvgScreen(bool update, float avg, float dis, int fuel, int dte)
+void drawAvgScreen(float avg, int dis, float fuel, float dte)
 {
     oled.setI2CAddress(0x3C << 1);
     oled.clearDisplay();
@@ -324,9 +323,9 @@ void drawAvgScreen(bool update, float avg, float dis, int fuel, int dte)
     oled.print("DTE : ");
 
     char avgStr[10], disStr[16], fuelStr[10], dteStr[10];
-    sprintf(avgStr, "%0.1f KPL", avg);
-    sprintf(disStr, "%0.2f KM", dis);
-    sprintf(fuelStr, "%d %%", fuel);
+    sprintf(avgStr, "%0.2f KPL", avg);
+    sprintf(disStr, "%d KM", dis);
+    sprintf(fuelStr, "%d L", fuel);
     sprintf(dteStr, "%d KM", dte);
 
     oled.setCursor(51, contentYPosition + 0 * lineHeight);

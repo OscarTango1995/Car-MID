@@ -7,5 +7,4 @@ extern const int buzzerPin;
 // Function declarations
 void initBuzzer();
 void turnBuzzerOn(bool turn);
-
 #endif

@@ -79,30 +79,5 @@ float readFuelFlow()
 
     float fuelFlow = (engineLoad / 100.0) * (manifoldPressure / 100.0) * (throttlePosition / 100.0) * (rpm / 2.0) * K;
 
-    return fuelFlow; // Return fuel flow in L/h
-}
-
-float calculateAverageFuelConsumption(float fuelFlow)
-{
-    // Step 1:Calculate speed
-    int32_t speed = myELM327.kph();
-    if (myELM327.nb_rx_state != ELM_GETTING_MSG)
-    {
-        myELM327.printError();
-    }
-    // Step 1: Calculate fuel consumption rate in L/min
-    float fuelConsumptionRate = readFuelFlow() / 60.0;
-
-    // Step 2: Convert speed to km/min
-    float distanceTraveled = (float)speed / 60.0; // Speed in km/h
-
-    // Step 3: Calculate average fuel consumption in km/L
-    if (fuelConsumptionRate < 1)
-    {
-        fuelConsumptionRate = 1;
-    }
-
-    float averageFuelConsumption = distanceTraveled / fuelConsumptionRate;
-
-    return averageFuelConsumption; // Return average fuel consumption in km/L
+    return fuelFlow / 60; // Return fuel flow in L/min
 }
