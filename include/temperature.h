@@ -17,5 +17,7 @@ InsideTempHumidity readInsideTemperature();
 float readOutsideTemperature();
 float readEngineTemperature();
 Temperatures getTemperatures();
+void readTemp();
+bool waitForTempMillis(unsigned long duration, unsigned long &previousMillis);
 
 #endif // TEMPERATURE_H

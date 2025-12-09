@@ -8,6 +8,18 @@ Adafruit_BMP280 bmp;
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 float temperatureCalibration = 0.0;
+unsigned long altMillis = 0;
+
+bool waitForAltMillis(unsigned long duration, unsigned long &previousMillis)
+{
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= duration)
+    {
+        previousMillis = currentMillis; // Reset the timer
+        return true;                    // Delay period is over
+    }
+    return false; // Still waiting
+}
 
 // Function to initialize the Temperaure sensors
 void initAltitude()
@@ -19,6 +31,7 @@ void initAltitude()
     while (1)
       ;
   }
+  delay(250);
 
   // Configure BMP280 settings
   bmp.setSampling(Adafruit_BMP280::MODE_SLEEP,       // Operating Mode
@@ -30,17 +43,17 @@ void initAltitude()
 
 Altitude getAltitude()
 {
-  bmp.reset();
-  initAltitude();
-  delay(750);
-
+  if (waitForAltMillis(750, altMillis))
+  {
+    bmp.reset();
+    initAltitude();
+  }
+  
   bmp.takeForcedMeasurement();
-  float temperature = bmp.readTemperature();
   float pressure = bmp.readPressure() / 100.0F; // Convert Pa to hPa
   float altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
   Altitude result;
   result.altitude = altitude;
   result.pressure = pressure;
-  result.temperature = temperature;
   return result;
 }

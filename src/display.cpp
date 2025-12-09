@@ -3,6 +3,17 @@
 #include <Adafruit_I2CDevice.h>
 #include "temperature.h"
 #include "altitude.h"
+#include "espnow.h"
+#include "sd.h"
+
+extern StatusData lastStatus;
+extern int engServiceSelected;
+extern int gearServiceSelected;
+extern int coolantServiceSelected;
+extern int batteryServiceSelected;
+extern int timingServiceSelected;
+extern int updateServiceSelected;
+extern ServiceEntry services[5]; // Actual definition
 
 // U8G2 constructor for the OLED (replace 0x3C with the correct address if needed)
 U8G2_SH1106_128X64_NONAME_F_HW_I2C oled(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);  // average display
@@ -38,8 +49,10 @@ void drawMenu(int selectedItem)
         "1. GPS",
         "2. Temps",
         "3. Altitude",
-        "4. Average",
-        "5. Service"};
+        "4. Engine",
+        "5. Maintenance",
+        "6. HUD",
+        "7. Key Fob"};
 
     int itemCount = sizeof(menuItems) / sizeof(menuItems[0]);
 
@@ -109,6 +122,46 @@ void drawMenu(int selectedItem)
     }
 
     // Send the updated buffer to the display
+    oled2.sendBuffer();
+}
+
+void drawServiceSubmenuItems(int selected)
+{
+    oled2.setI2CAddress(0x3D << 1);
+    oled2.setFont(u8g2_font_7x14_tr);
+
+    int contentYPosition = 25;
+    int lineHeight = 12;
+
+    const char *subItems[] = {
+        "1. ENG",
+        "2. GEAR",
+        "3. COOLANT",
+        "4. TIMING",
+        "5. BATTERY",
+    };
+
+    int totalItems = sizeof(subItems) / sizeof(subItems[0]);
+    int maxVisible = 4;
+
+    // Clear only the content area
+    oled2.setDrawColor(0);
+    oled2.drawBox(1, 15, 126, 48); // content area only
+    oled2.setDrawColor(1);
+
+    // Calculate scrolling start index
+    int startIdx = 0;
+    if (selected >= maxVisible)
+        startIdx = selected - maxVisible + 1;
+
+    for (int i = 0; i < maxVisible && (startIdx + i) < totalItems; i++)
+    {
+        int idx = startIdx + i;
+        oled2.setCursor(10, contentYPosition + i * lineHeight);
+        oled2.print((idx == selected) ? ">" : " ");
+        oled2.print(subItems[idx]);
+    }
+
     oled2.sendBuffer();
 }
 
@@ -191,13 +244,13 @@ void drawTemperaturesScreen(Temperatures temp, bool update, int coolantTemp)
 }
 
 // Function to display GPS data on the OLED
-void drawGPSScreen(bool update)
+void drawGPSScreen(bool update, int sats, int speed, int fix)
 {
     oled2.setI2CAddress(0x3D << 1);
-    char satStr[10], spdStr[10], dteStr[10];
-    sprintf(satStr, "%d ", 4);
-    sprintf(spdStr, "%d KM/H", 100);
-    sprintf(dteStr, "%d KM", 500);
+    char satStr[10], spdStr[10], fixStr[10];
+    sprintf(satStr, "%d ", sats);
+    sprintf(spdStr, "%d KM/H", speed);
+    sprintf(fixStr, "%dD", fix);
 
     if (!update)
     {
@@ -211,15 +264,14 @@ void drawGPSScreen(bool update)
         oled2.setCursor(6, contentYPosition + 1 * lineHeight);
         oled2.print("SPD : ");
         oled2.setCursor(6, contentYPosition + 2 * lineHeight);
-        oled2.print("DTE : ");
+        oled2.print("FIX : ");
 
         oled2.setCursor(50, contentYPosition + 0 * lineHeight);
         oled2.print(satStr);
         oled2.setCursor(50, contentYPosition + 1 * lineHeight);
         oled2.print(spdStr);
         oled2.setCursor(50, contentYPosition + 2 * lineHeight);
-        oled2.print(dteStr);
-        oled2.sendBuffer();
+        oled2.print(fixStr);
     }
     else
     {
@@ -232,20 +284,21 @@ void drawGPSScreen(bool update)
         oled2.setCursor(50, 37);
         oled2.print(spdStr);
         oled2.setCursor(50, 49);
-        oled2.print(dteStr);
+        oled2.print(fixStr);
     }
+
     oled2.sendBuffer();
 }
 
 // Function to display altitude data on the OLED
-void drawAltitudeScreen(Altitude altitude, Temperatures temp, bool update)
+void drawAltitudeScreen(Altitude altitude,int temp, float pitch, bool update)
 {
     oled2.setI2CAddress(0x3D << 1);
-    char altStr[10], hpaStr[10], iatStr[10], oatStr[10];
+    char altStr[10], hpaStr[10], iatStr[10], pitchStr[10];
     sprintf(altStr, "%d M", (int)altitude.altitude);
     sprintf(hpaStr, "%d hPa", (int)altitude.pressure);
-    sprintf(iatStr, "%d  C", (int)altitude.temperature);
-    sprintf(oatStr, "%d  C", (int)temp.oat);
+    sprintf(iatStr, "%d  C", temp);
+    sprintf(pitchStr, "%0.1f  °\t", (float)pitch);
 
     if (!update)
     {
@@ -261,7 +314,7 @@ void drawAltitudeScreen(Altitude altitude, Temperatures temp, bool update)
         oled2.setCursor(6, contentYPosition + 2 * lineHeight);
         oled2.print("IAT : ");
         oled2.setCursor(6, contentYPosition + 3 * lineHeight);
-        oled2.print("OAT : ");
+        oled2.print("PTCH: ");
 
         oled2.setCursor(50, contentYPosition + 0 * lineHeight);
         oled2.print(altStr);
@@ -270,7 +323,7 @@ void drawAltitudeScreen(Altitude altitude, Temperatures temp, bool update)
         oled2.setCursor(50, contentYPosition + 2 * lineHeight);
         oled2.print(iatStr);
         oled2.setCursor(50, contentYPosition + 3 * lineHeight);
-        oled2.print(oatStr);
+        oled2.print(pitchStr);
     }
     else
     {
@@ -285,14 +338,15 @@ void drawAltitudeScreen(Altitude altitude, Temperatures temp, bool update)
         oled2.setCursor(50, 49);
         oled2.print(iatStr);
         oled2.setCursor(50, 61);
-        oled2.print(oatStr);
+        oled2.print(pitchStr);
     }
     oled2.sendBuffer();
 }
 
 // Function to display avg data on the OLED
-void drawAvgScreen(bool update, float avg, float dis, int fuel, int dte)
+void drawAvgScreen(float avg, float dis, float fuel, float dte)
 {
+    Serial.println();
     oled.setI2CAddress(0x3C << 1);
     oled.clearDisplay();
     // Draw the outer frame
@@ -319,15 +373,15 @@ void drawAvgScreen(bool update, float avg, float dis, int fuel, int dte)
     oled.setCursor(7, contentYPosition + 1 * lineHeight);
     oled.print("DIS : ");
     oled.setCursor(7, contentYPosition + 2 * lineHeight);
-    oled.print("FUEL: ");
+    oled.print("FREM: ");
     oled.setCursor(7, contentYPosition + 3 * lineHeight);
     oled.print("DTE : ");
 
-    char avgStr[10], disStr[16], fuelStr[10], dteStr[10];
-    sprintf(avgStr, "%0.1f KPL", avg);
-    sprintf(disStr, "%0.2f KM", dis);
-    sprintf(fuelStr, "%d %%", fuel);
-    sprintf(dteStr, "%d KM", dte);
+    char avgStr[10], disStr[20], fuelStr[10], dteStr[10];
+    snprintf(avgStr, sizeof(avgStr), "%0.2f KPL", avg);
+    snprintf(disStr, sizeof(disStr), "%0.2f KM", dis);
+    snprintf(fuelStr, sizeof(fuelStr), "%0.2f L", fuel);
+    snprintf(dteStr, sizeof(dteStr), "%0.2f KM", dte);
 
     oled.setCursor(51, contentYPosition + 0 * lineHeight);
     oled.print(avgStr);
@@ -341,37 +395,241 @@ void drawAvgScreen(bool update, float avg, float dis, int fuel, int dte)
     oled.sendBuffer();
 }
 
-void drawServiceScreen()
+void drawServiceItemScreen(int serviceIndex)
+{
+    readServiceData();
+
+    oled2.setI2CAddress(0x3D << 1);
+    drawInitialDisplay(oled2, services[serviceIndex].type.c_str());
+
+    oled2.setFont(u8g2_font_7x14_tr);
+    int y = 25;
+    int h = 12;
+
+    if (serviceIndex == 4)
+    {
+        oled2.setCursor(10, y);
+        oled2.print("DATE:");
+        oled2.print(services[serviceIndex].date); // Date from CSV
+        oled2.setCursor(10, y + h);
+        oled2.print(" ");
+        oled2.setCursor(10, y + h * 2);
+        oled2.print(" ");
+    }
+    else
+    {
+        // ENGINE OIL MILEAGE
+        oled2.setCursor(10, y);
+        oled2.print("AT  :");
+        oled2.print(services[serviceIndex].mileage);
+        oled2.print(" KM");
+
+        // SERVICE DUE MILEAGE
+        oled2.setCursor(10, y + h);
+        oled2.print("DUE :");
+        oled2.print(services[serviceIndex].mileage + getKmAdder(serviceIndex)); // Assuming service due after +5000 km
+        oled2.print(" KM");
+
+        // SERVICE DATE
+        oled2.setCursor(10, y + h * 2);
+        oled2.print("DATE:");
+        oled2.print(services[serviceIndex].date); // Date from CSV
+    }
+    // UPDATE HIGHLIGHT
+    oled2.setFont(u8g2_font_6x10_tr);
+    oled2.setCursor(10, y + h * 3);
+    if (updateServiceSelected == 1)
+    {
+        oled2.print("-> UPDATE?");
+    }
+    else
+    {
+        oled2.print("             "); // Clear previous text
+    }
+
+    oled2.sendBuffer();
+}
+
+void drawServiceMainSubmenu(int selected)
+{
+     oled2.setI2CAddress(0x3D << 1);
+    drawInitialDisplay(oled2, "MAINTENANCE"); // Draw once
+    drawServiceSubmenuItems(selected);        // Draw items
+}
+
+void drawHUDScreen(int brightnessLevel)
 {
     oled2.setI2CAddress(0x3D << 1);
-    int eoilValue = 178000;
-    int goilValue = 173580;
 
-    int eoilcValue = eoilValue + 5000;  // Add 5000 to the original value
-    int goilcValue = goilValue + 40000; // Add 30000 to the original value
+    // Set font for HUD title
+    oled2.setFont(u8g2_font_7x14_tr);
+    drawInitialDisplay(oled2, "HUD");
 
-    drawInitialDisplay(oled2, "SERVICE");
+    // Define brightness labels and bar positions
+    const char *levels[] = {"L", "M", "H"};
+    int barX = 13, barY = 28, barWidth = 100, barHeight = 15; // Moved right by 3 pixels
+    int stepWidth = barWidth / 3;
+
+    // Set font for the rest of the UI
+    oled2.setFont(u8g2_font_5x8_tr);
+
+    // Draw small font title above bar
+    oled2.setCursor(barX + 25, barY - 2);
+    oled2.print("BRIGHTNESS");
+
+    // Draw brightness bar background
+    oled2.drawFrame(barX, barY + 3, barWidth, barHeight);
+
+    // Map brightness levels (5 -> L, 10 -> M, 15 -> H)
+    int brightnessIndex = (brightnessLevel - 5) / 5;
+    int barOffset = (brightnessLevel == 5) ? 2 : (brightnessLevel == 15 ? 1 : 0);
+    // int barWidthAdjust = (brightnessLevel == 15) ? 2 : 0; // Reduce width by 1 pixel when at H
+    oled2.drawBox(barX + (brightnessIndex * stepWidth) + barOffset, barY + 5, stepWidth - 2, barHeight - 4);
+
+    // Draw labels below steps with improved spacing
+    oled2.setCursor(barX, barY + barHeight + 11);                                   // Left aligned
+    oled2.print(levels[0]);                                                         // L
+    oled2.setCursor(barX + stepWidth + (stepWidth / 2) - 3, barY + barHeight + 11); // Center aligned
+    oled2.print(levels[1]);                                                         // M
+    oled2.setCursor(barX + (2 * stepWidth) + stepWidth - 3, barY + barHeight + 11); // Adjusted right aligned by moving 2 pixels right
+    oled2.print(levels[2]);                                                         // H
+
+    oled2.sendBuffer();
+}
+
+void drawKeyFobScreen(StatusData lastStatus)
+{
+    char tempStr[10];
+    sprintf(tempStr, "%d C", (int)lastStatus.immobilizerTemperature);
+    oled2.setI2CAddress(0x3D << 1);
+
+    drawInitialDisplay(oled2, "KEY FOB");
     oled2.setFont(u8g2_font_7x14_tr);
     int contentYPosition = 25;
     int lineHeight = 12;
 
     oled2.setCursor(6, contentYPosition + 0 * lineHeight);
-    oled2.print("E-OIL: ");
+    oled2.print("CONN: ");
     oled2.setCursor(6, contentYPosition + 1 * lineHeight);
-    oled2.print("G-OIL: ");
+    oled2.print("BATT: ");
     oled2.setCursor(6, contentYPosition + 2 * lineHeight);
-    oled2.print("E-CHG: ");
+    oled2.print("RSSI: ");
     oled2.setCursor(6, contentYPosition + 3 * lineHeight);
-    oled2.print("G-CHG: ");
+    oled2.print("TEMP: ");
 
     oled2.setCursor(50, contentYPosition + 0 * lineHeight);
-    oled2.print(eoilValue);
+    oled2.print(lastStatus.isConnected ? "CON" : "DSC");
     oled2.setCursor(50, contentYPosition + 1 * lineHeight);
-    oled2.print(goilValue);
+    oled2.print(lastStatus.batteryLevel);
     oled2.setCursor(50, contentYPosition + 2 * lineHeight);
-    oled2.print(eoilcValue);
+    oled2.print(lastStatus.rssi);
     oled2.setCursor(50, contentYPosition + 3 * lineHeight);
-    oled2.print(goilcValue);
+    oled2.print(tempStr);
 
+    oled2.sendBuffer();
+}
+
+void drawWarningScreen(int batt, const char *title, bool coolant)
+{
+    oled2.setI2CAddress(0x3D << 1);
+    oled2.clearDisplay();
+
+    // Draw the outer frame
+    oled2.drawFrame(0, 0, 128, 64);
+
+    // Title bar
+    oled2.setDrawColor(0);
+    oled2.drawBox(0, 0, 128, 13);
+    oled2.setDrawColor(1);
+    oled2.drawFrame(0, 0, 128, 13);
+
+    // Title text
+    oled2.setFont(u8g2_font_6x12_tr);
+    oled2.setCursor((128 - oled2.getStrWidth("WARNING")) / 2, 10);
+    oled2.print("WARNING");
+
+    // Centered warning messages
+    oled2.setFont(u8g2_font_10x20_tr);                  // Bold readable font
+    int textHeight = 20;                                // height of font_10x20_tr
+    int yStart = (64 - 13 - (textHeight * 2)) / 2 + 13; // Adjusted for title bar height
+    const char *line1 = title;
+    if (batt > -1)
+    {
+        char battStr[6]; // enough for "100%" + null terminator
+        if (coolant)
+        {
+            sprintf(battStr, "%dC", batt); // batt is your integer
+        }
+        else
+        {
+            sprintf(battStr, "%d%%", batt); // batt is your integer
+        }
+
+        const char *line2 = battStr;
+        // Line 2
+        oled2.setCursor((128 - oled2.getStrWidth(line2)) / 2, yStart + textHeight * 2);
+        oled2.print(line2);
+    }
+
+    // Line 1
+    oled2.setCursor((128 - oled2.getStrWidth(line1)) / 2, yStart + textHeight);
+    oled2.print(line1);
+
+    oled2.sendBuffer();
+}
+
+// Function to display altitude data on the OLED
+void drawEngineScreen(int rpm, int coolantTemp, int speed, float fuel, float voltage, bool update)
+{
+
+    oled2.setI2CAddress(0x3D << 1);
+    char rpmStr[10], engStr[10], speedStr[16], fuelStr[10];
+    sprintf(rpmStr, "%d ", rpm);
+    sprintf(engStr, "%d C", coolantTemp);
+    sprintf(speedStr, "%0.2f ", voltage);
+    // sprintf(speedStr, "%d KM/H ", speed);
+    sprintf(fuelStr, "%0.2f L", fuel);
+
+    if (!update)
+    {
+        drawInitialDisplay(oled2, "ENGINE");
+        oled2.setFont(u8g2_font_7x14_tr);
+        int contentYPosition = 25;
+        int lineHeight = 12;
+
+        oled2.setCursor(6, contentYPosition + 0 * lineHeight);
+        oled2.print("RPM : ");
+        oled2.setCursor(6, contentYPosition + 1 * lineHeight);
+        oled2.print("VOL: ");
+        // oled2.print("SPD: ");
+        oled2.setCursor(6, contentYPosition + 2 * lineHeight);
+        oled2.print("ENG : ");
+        oled2.setCursor(6, contentYPosition + 3 * lineHeight);
+        oled2.print("FUEL : ");
+
+        oled2.setCursor(50, contentYPosition + 0 * lineHeight);
+        oled2.print(rpmStr);
+        oled2.setCursor(50, contentYPosition + 1 * lineHeight);
+        oled2.print(speedStr);
+        oled2.setCursor(50, contentYPosition + 2 * lineHeight);
+        oled2.print(engStr);
+        oled2.setCursor(50, contentYPosition + 3 * lineHeight);
+        oled2.print(fuelStr);
+    }
+    else
+    {
+        oled2.setDrawColor(0);
+        oled2.drawBox(45, 15, 70, 47);
+
+        oled2.setDrawColor(1);
+        oled2.setCursor(50, 25);
+        oled2.print(rpmStr);
+        oled2.setCursor(50, 37);
+        oled2.print(speedStr);
+        oled2.setCursor(50, 49);
+        oled2.print(engStr);
+        oled2.setCursor(50, 61);
+        oled2.print(fuelStr);
+    }
     oled2.sendBuffer();
 }
